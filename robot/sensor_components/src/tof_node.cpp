@@ -1,0 +1,453 @@
+#include <fcntl.h>
+#include <linux/i2c-dev.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <cerrno>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <fstream>
+#include <memory>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/range.hpp"
+
+namespace sensor_components
+{
+namespace
+{
+constexpr uint8_t kDefaultAddress = 0x29;
+constexpr uint8_t kI2cAddressReg = 0x8A;
+constexpr uint8_t kResultInterruptStatusReg = 0x13;
+constexpr uint8_t kResultRangeStatusReg = 0x14;
+constexpr uint8_t kSystemInterruptClearReg = 0x0B;
+constexpr uint8_t kSysrangeStartReg = 0x00;
+constexpr uint8_t kModelIdReg = 0xC0;
+constexpr uint8_t kExpectedModelId = 0xEE;
+constexpr double kMinPublishRate = 1.0;
+constexpr double kMaxPublishRate = 100.0;
+
+bool writeTextFile(const std::string & path, const std::string & value)
+{
+  std::ofstream file(path);
+  if (!file.is_open()) {
+    return false;
+  }
+  file << value;
+  return file.good();
+}
+
+bool pathExists(const std::string & path)
+{
+  return ::access(path.c_str(), F_OK) == 0;
+}
+}  // namespace
+
+class SysfsGpio
+{
+public:
+  explicit SysfsGpio(int pin)
+  : pin_(pin), path_("/sys/class/gpio/gpio" + std::to_string(pin))
+  {
+  }
+
+  bool exportLine()
+  {
+    if (!pathExists(path_) && !writeTextFile("/sys/class/gpio/export", std::to_string(pin_))) {
+      return false;
+    }
+
+    for (int i = 0; i < 20 && !pathExists(path_ + "/direction"); ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    return writeTextFile(path_ + "/direction", "out");
+  }
+
+  bool setValue(bool high)
+  {
+    return writeTextFile(path_ + "/value", high ? "1" : "0");
+  }
+
+private:
+  int pin_;
+  std::string path_;
+};
+
+struct SensorConfig
+{
+  std::string name;
+  int xshut_gpio;
+  uint8_t i2c_address;
+  std::string frame_id;
+  std::string topic;
+};
+
+class VL53L0XDevice
+{
+public:
+  VL53L0XDevice(SensorConfig config, int i2c_bus)
+  : config_(std::move(config)), i2c_bus_(i2c_bus), i2c_fd_(-1), ready_(false)
+  {
+  }
+
+  ~VL53L0XDevice()
+  {
+    closeBus();
+  }
+
+  const SensorConfig & config() const
+  {
+    return config_;
+  }
+
+  bool ready() const
+  {
+    return ready_;
+  }
+
+  void setReady(bool ready)
+  {
+    ready_ = ready;
+  }
+
+  bool openAt(uint8_t address)
+  {
+    closeBus();
+    const std::string device = "/dev/i2c-" + std::to_string(i2c_bus_);
+    i2c_fd_ = ::open(device.c_str(), O_RDWR);
+    if (i2c_fd_ < 0) {
+      return false;
+    }
+    return selectAddress(address);
+  }
+
+  bool initializeFromDefaultAddress()
+  {
+    if (!openAt(kDefaultAddress)) {
+      return false;
+    }
+
+    uint8_t model_id = 0;
+    if (!readRegister(kModelIdReg, model_id) || model_id != kExpectedModelId) {
+      closeBus();
+      return false;
+    }
+
+    if (!setAddress(config_.i2c_address) || !initializeRanging()) {
+      closeBus();
+      return false;
+    }
+
+    ready_ = true;
+    return true;
+  }
+
+  bool readRangeMeters(double & range_m)
+  {
+    if (!ready_) {
+      return false;
+    }
+
+    uint8_t status = 0;
+    for (int i = 0; i < 10; ++i) {
+      if (!readRegister(kResultInterruptStatusReg, status)) {
+        return false;
+      }
+      if ((status & 0x07) != 0) {
+        uint16_t range_mm = 0;
+        if (!readRegister16(kResultRangeStatusReg + 10, range_mm)) {
+          return false;
+        }
+        writeRegister(kSystemInterruptClearReg, 0x01);
+        range_m = static_cast<double>(range_mm) / 1000.0;
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    return false;
+  }
+
+private:
+  bool selectAddress(uint8_t address)
+  {
+    if (i2c_fd_ < 0) {
+      return false;
+    }
+    return ::ioctl(i2c_fd_, I2C_SLAVE, address) >= 0;
+  }
+
+  bool setAddress(uint8_t new_address)
+  {
+    if (!writeRegister(kI2cAddressReg, new_address & 0x7F)) {
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    return selectAddress(new_address);
+  }
+
+  bool initializeRanging()
+  {
+    const std::pair<uint8_t, uint8_t> init_sequence[] = {
+      {0x88, 0x00}, {0x80, 0x01}, {0xFF, 0x01}, {0x00, 0x00},
+      {0x91, 0x3C}, {0x00, 0x01}, {0xFF, 0x00}, {0x80, 0x00},
+      {0x60, 0x00}, {0x01, 0xFF}, {0x00, 0x02},
+    };
+
+    for (const auto & entry : init_sequence) {
+      if (!writeRegister(entry.first, entry.second)) {
+        return false;
+      }
+    }
+
+    return startContinuous();
+  }
+
+  bool startContinuous()
+  {
+    const std::pair<uint8_t, uint8_t> sequence[] = {
+      {0x80, 0x01}, {0xFF, 0x01}, {0x00, 0x00}, {0x91, 0x3C},
+      {0x00, 0x01}, {0xFF, 0x00}, {0x80, 0x00}, {kSysrangeStartReg, 0x02},
+    };
+
+    for (const auto & entry : sequence) {
+      if (!writeRegister(entry.first, entry.second)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool writeRegister(uint8_t reg, uint8_t value)
+  {
+    const uint8_t data[2] = {reg, value};
+    return ::write(i2c_fd_, data, sizeof(data)) == static_cast<ssize_t>(sizeof(data));
+  }
+
+  bool readRegister(uint8_t reg, uint8_t & value)
+  {
+    if (::write(i2c_fd_, &reg, 1) != 1) {
+      return false;
+    }
+    return ::read(i2c_fd_, &value, 1) == 1;
+  }
+
+  bool readRegister16(uint8_t reg, uint16_t & value)
+  {
+    uint8_t data[2] = {0, 0};
+    if (::write(i2c_fd_, &reg, 1) != 1) {
+      return false;
+    }
+    if (::read(i2c_fd_, data, sizeof(data)) != static_cast<ssize_t>(sizeof(data))) {
+      return false;
+    }
+    value = static_cast<uint16_t>((static_cast<uint16_t>(data[0]) << 8) | data[1]);
+    return true;
+  }
+
+  void closeBus()
+  {
+    if (i2c_fd_ >= 0) {
+      ::close(i2c_fd_);
+      i2c_fd_ = -1;
+    }
+  }
+
+  SensorConfig config_;
+  int i2c_bus_;
+  int i2c_fd_;
+  bool ready_;
+};
+
+class TofNode : public rclcpp::Node
+{
+public:
+  TofNode()
+  : Node("tof_node"),
+    i2c_bus_(declare_parameter<int>("i2c_bus", 1)),
+    publish_rate_(declare_parameter<double>("publish_rate", 20.0)),
+    min_range_(declare_parameter<double>("min_range", 0.03)),
+    max_range_(declare_parameter<double>("max_range", 2.0)),
+    field_of_view_(declare_parameter<double>("field_of_view", 0.436))
+  {
+    publish_rate_ = std::clamp(publish_rate_, kMinPublishRate, kMaxPublishRate);
+    loadSensors();
+    initializeSensors();
+
+    const auto period =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(1.0 / publish_rate_));
+    timer_ = create_wall_timer(period, std::bind(&TofNode::timerCallback, this));
+  }
+
+private:
+  void loadSensors()
+  {
+    const std::vector<std::string> default_sensors = {
+      "front_right", "front_left", "rear_right", "rear_left"};
+    const auto sensor_names = declare_parameter<std::vector<std::string>>("sensors", default_sensors);
+
+    for (const auto & name : sensor_names) {
+      SensorConfig config;
+      config.name = name;
+      config.xshut_gpio = declare_parameter<int>(name + ".xshut_gpio", defaultXshut(name));
+      config.i2c_address = static_cast<uint8_t>(declare_parameter<int>(name + ".i2c_address", defaultAddress(name)));
+      config.frame_id = declare_parameter<std::string>(name + ".frame_id", defaultFrameId(name));
+      config.topic = declare_parameter<std::string>(name + ".topic", "/tof/" + name);
+
+      auto publisher = create_publisher<sensor_msgs::msg::Range>(config.topic, rclcpp::SensorDataQoS());
+      sensors_.push_back(std::make_unique<VL53L0XDevice>(config, i2c_bus_));
+      publishers_.push_back(publisher);
+    }
+  }
+
+  void initializeSensors()
+  {
+    gpios_.clear();
+    gpios_.reserve(sensors_.size());
+
+    bool gpio_ok = true;
+    for (const auto & sensor : sensors_) {
+      auto gpio = std::make_unique<SysfsGpio>(sensor->config().xshut_gpio);
+      if (!gpio->exportLine() || !gpio->setValue(false)) {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to drive XSHUT GPIO %d for %s",
+          sensor->config().xshut_gpio, sensor->config().name.c_str());
+        gpio_ok = false;
+      }
+      gpios_.push_back(std::move(gpio));
+    }
+
+    if (!gpio_ok) {
+      RCLCPP_ERROR(get_logger(), "ToF GPIO setup incomplete; node will keep running without exiting");
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    for (std::size_t i = 0; i < sensors_.size(); ++i) {
+      const auto & config = sensors_[i]->config();
+      if (!gpios_[i]->setValue(true)) {
+        RCLCPP_ERROR(get_logger(), "Failed to enable ToF sensor %s", config.name.c_str());
+        sensors_[i]->setReady(false);
+        continue;
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      if (!sensors_[i]->initializeFromDefaultAddress()) {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to initialize ToF sensor %s at reassigned address 0x%02X",
+          config.name.c_str(), config.i2c_address);
+        gpios_[i]->setValue(false);
+        sensors_[i]->setReady(false);
+        continue;
+      }
+
+      RCLCPP_INFO(
+        get_logger(), "Initialized ToF sensor %s at 0x%02X on /dev/i2c-%d",
+        config.name.c_str(), config.i2c_address, i2c_bus_);
+    }
+  }
+
+  void timerCallback()
+  {
+    const auto stamp = get_clock()->now();
+
+    for (std::size_t i = 0; i < sensors_.size(); ++i) {
+      double range = 0.0;
+      if (!sensors_[i]->readRangeMeters(range)) {
+        RCLCPP_ERROR_THROTTLE(
+          get_logger(), *get_clock(), 5000, "Failed to read ToF sensor %s",
+          sensors_[i]->config().name.c_str());
+        continue;
+      }
+
+      sensor_msgs::msg::Range msg;
+      msg.header.stamp = stamp;
+      msg.header.frame_id = sensors_[i]->config().frame_id;
+      msg.radiation_type = sensor_msgs::msg::Range::INFRARED;
+      msg.field_of_view = static_cast<float>(field_of_view_);
+      msg.min_range = static_cast<float>(min_range_);
+      msg.max_range = static_cast<float>(max_range_);
+      msg.range = static_cast<float>(range);
+      publishers_[i]->publish(msg);
+    }
+  }
+
+  int defaultXshut(const std::string & name) const
+  {
+    if (name == "front_right") {
+      return 17;
+    }
+    if (name == "front_left") {
+      return 27;
+    }
+    if (name == "rear_right") {
+      return 22;
+    }
+    if (name == "rear_left") {
+      return 23;
+    }
+    return 0;
+  }
+
+  int defaultAddress(const std::string & name) const
+  {
+    if (name == "front_right") {
+      return 0x30;
+    }
+    if (name == "front_left") {
+      return 0x31;
+    }
+    if (name == "rear_right") {
+      return 0x32;
+    }
+    if (name == "rear_left") {
+      return 0x33;
+    }
+    return 0x30;
+  }
+
+  std::string defaultFrameId(const std::string & name) const
+  {
+    if (name == "front_right") {
+      return "tof_front_right_link";
+    }
+    if (name == "front_left") {
+      return "tof_front_left_link";
+    }
+    if (name == "rear_right") {
+      return "tof_rear_right_link";
+    }
+    if (name == "rear_left") {
+      return "tof_rear_left_link";
+    }
+    return "tof_" + name + "_link";
+  }
+
+  int i2c_bus_;
+  double publish_rate_;
+  double min_range_;
+  double max_range_;
+  double field_of_view_;
+  std::vector<std::unique_ptr<VL53L0XDevice>> sensors_;
+  std::vector<std::unique_ptr<SysfsGpio>> gpios_;
+  std::vector<rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr> publishers_;
+  rclcpp::TimerBase::SharedPtr timer_;
+};
+
+}  // namespace sensor_components
+
+int main(int argc, char ** argv)
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<sensor_components::TofNode>());
+  rclcpp::shutdown();
+  return 0;
+}

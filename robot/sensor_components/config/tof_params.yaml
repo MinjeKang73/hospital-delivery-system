@@ -1,0 +1,32 @@
+tof_node:
+  ros__parameters:
+    i2c_bus: 1
+    publish_rate: 20.0
+    min_range: 0.03
+    max_range: 2.0
+    field_of_view: 0.436
+    sensors:
+      - front_right
+      - front_left
+      - rear_right
+      - rear_left
+    front_right:
+      xshut_gpio: 17
+      i2c_address: 0x30
+      frame_id: "tof_front_right_link"
+      topic: "/tof/front_right"
+    front_left:
+      xshut_gpio: 27
+      i2c_address: 0x31
+      frame_id: "tof_front_left_link"
+      topic: "/tof/front_left"
+    rear_right:
+      xshut_gpio: 22
+      i2c_address: 0x32
+      frame_id: "tof_rear_right_link"
+      topic: "/tof/rear_right"
+    rear_left:
+      xshut_gpio: 23
+      i2c_address: 0x33
+      frame_id: "tof_rear_left_link"
+      topic: "/tof/rear_left"
