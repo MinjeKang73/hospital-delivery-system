@@ -1,0 +1,21 @@
+tof_obstacle_node:
+  ros__parameters:
+    output_topic: "/tof/obstacles"
+    output_frame: "base_link"
+    publish_rate: 20.0
+    timeout_sec: 0.2
+    min_valid_range: 0.03
+    max_valid_range: 2.0
+    sensors:
+      - "front_left"
+      - "front_right"
+      - "rear_left"
+      - "rear_right"
+    sensors.front_left.topic: "/tof/front_left"
+    sensors.front_left.frame_id: "tof_front_left_link"
+    sensors.front_right.topic: "/tof/front_right"
+    sensors.front_right.frame_id: "tof_front_right_link"
+    sensors.rear_left.topic: "/tof/rear_left"
+    sensors.rear_left.frame_id: "tof_rear_left_link"
+    sensors.rear_right.topic: "/tof/rear_right"
+    sensors.rear_right.frame_id: "tof_rear_right_link"
