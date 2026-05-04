@@ -1,12 +1,12 @@
-#ifndef MOTOR_BRIDGE__ENCODER_ODOM_HPP_
-#define MOTOR_BRIDGE__ENCODER_ODOM_HPP_
+#ifndef CONTROL__ENCODER_ODOM_NODE_HPP_
+#define CONTROL__ENCODER_ODOM_NODE_HPP_
 
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/int64_multi_array.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <memory>
 #include <string>
@@ -38,7 +38,7 @@ private:
   double ticks_per_revolution_;
   double left_tick_sign_;
   double right_tick_sign_;
-  bool   publish_tf_;
+  bool publish_tf_;
 
   double x_;
   double y_;
@@ -50,4 +50,4 @@ private:
 
 }  // namespace motor_bridge
 
-#endif  // MOTOR_BRIDGE__ENCODER_ODOM_HPP_
+#endif  // CONTROL__ENCODER_ODOM_NODE_HPP_
