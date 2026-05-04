@@ -1,9 +1,15 @@
-#include "encoder_odom_node.hpp"
+#include "control/encoder_odom_node.hpp"
 
 #include <cmath>
+#include <functional>
 
 namespace motor_bridge
 {
+
+namespace
+{
+constexpr double kPi = 3.14159265358979323846;
+}
 
 EncoderOdomNode::EncoderOdomNode()
 : Node("encoder_odom_node"),
@@ -56,7 +62,7 @@ void EncoderOdomNode::encoderTicksCallback(
   const double left_delta_ticks = static_cast<double>(msg->data[0]) * left_tick_sign_;
   const double right_delta_ticks = static_cast<double>(msg->data[1]) * right_tick_sign_;
 
-  const double meters_per_tick = (2.0 * M_PI * wheel_radius_) / ticks_per_revolution_;
+  const double meters_per_tick = (2.0 * kPi * wheel_radius_) / ticks_per_revolution_;
   const double left_distance = left_delta_ticks * meters_per_tick;
   const double right_distance = right_delta_ticks * meters_per_tick;
 

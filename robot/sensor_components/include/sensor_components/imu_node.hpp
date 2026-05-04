@@ -1,5 +1,5 @@
-#ifndef SENSOR_COMPONENTS_IMU_NODE_HPP_
-#define SENSOR_COMPONENTS_IMU_NODE_HPP_
+#ifndef SENSOR_COMPONENTS__IMU_NODE_HPP_
+#define SENSOR_COMPONENTS__IMU_NODE_HPP_
 
 #include <array>
 #include <chrono>
@@ -60,4 +60,4 @@ private:
 
 }  // namespace sensor_components
 
-#endif  // SENSOR_COMPONENTS_IMU_NODE_HPP_
+#endif  // SENSOR_COMPONENTS__IMU_NODE_HPP_

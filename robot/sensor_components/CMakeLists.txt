@@ -15,7 +15,7 @@ find_package(tf2_ros REQUIRED)
 
 add_executable(imu_node src/imu_node.cpp)
 target_include_directories(imu_node PRIVATE
-  inlcude
+  include
 )
 ament_target_dependencies(imu_node
   rclcpp

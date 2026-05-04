@@ -1,4 +1,4 @@
-#include "imu_node.hpp"
+#include "sensor_components/imu_node.hpp"
 
 #include <fcntl.h>
 #include <linux/i2c-dev.h>
