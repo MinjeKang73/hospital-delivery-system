@@ -9,6 +9,9 @@ Panels:
         - /Map1
         - /LaserScan1
         - /TF1
+        - /RobotModel1
+        - /Odometry1
+        - /Axes1
       Splitter Ratio: 0.5
     Tree Height: 600
 
@@ -53,6 +56,8 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /map
+      Update Topic:
+        Value: /map_updates
       Alpha: 0.7
       Color Scheme: map
       Draw Behind: false
@@ -63,12 +68,13 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /scan
-      Size (m): 0.03
+      Size (m): 0.06
       Style: Flat Squares
       Use Fixed Frame: true
       Color Transformer: Intensity
-      Queue Size: 10
+      Queue Size: 20
       Alpha: 1
+      Decay Time: 0
 
     - Class: rviz_default_plugins/TF
       Name: TF
@@ -78,6 +84,7 @@ Visualization Manager:
       Show Names: true
       Marker Scale: 0.5
       Frame Timeout: 15
+      Update Interval: 0
 
     - Class: rviz_default_plugins/RobotModel
       Name: RobotModel
@@ -92,12 +99,19 @@ Visualization Manager:
       Name: Odometry
       Enabled: true
       Topic:
-        Value: /odom
+        Value: /odometry/filtered
       Shape:
         Value: Arrow
       Color: 255; 25; 0
       Alpha: 1
       Keep: 100
+
+    - Class: rviz_default_plugins/Axes
+      Name: Axes
+      Enabled: true
+      Reference Frame: base_link
+      Length: 0.5
+      Radius: 0.03
 
   Tools:
     - Class: rviz_default_plugins/Interact

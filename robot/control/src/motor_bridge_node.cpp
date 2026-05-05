@@ -163,7 +163,6 @@ void MotorBridgeNode::sendMotorCommand(int left_pct, int right_pct)
 
   char buf[24];
   std::snprintf(buf, sizeof(buf), "CMD:%d,%d\n", left_pct, right_pct);
-  RCLCPP_INFO(get_logger(), "STM32 TX: CMD:%d,%d\\n", left_pct, right_pct);
   sendSerial(buf);
 }
 
