@@ -36,7 +36,7 @@ def generate_launch_description():
                 'encoder_ticks_topic': '/encoder_ticks',
                 'odom_topic': '/odom_raw',
                 'odom_frame': 'odom',
-                'base_frame': 'base_link',
+                'base_frame': 'base_footprint',
                 'wheel_radius': 0.0625,
                 'wheel_separation': 0.38,
                 'ticks_per_revolution': 75.0,
