@@ -156,6 +156,17 @@ void MotorBridgeNode::sendSerial(const std::string & data)
   }
 }
 
+void MotorBridgeNode::sendMotorCommand(int left_pct, int right_pct)
+{
+  left_pct = static_cast<int>(clamp(left_pct, -100.0, 100.0));
+  right_pct = static_cast<int>(clamp(right_pct, -100.0, 100.0));
+
+  char buf[24];
+  std::snprintf(buf, sizeof(buf), "CMD:%d,%d\n", left_pct, right_pct);
+  RCLCPP_INFO(get_logger(), "STM32 TX: CMD:%d,%d\\n", left_pct, right_pct);
+  sendSerial(buf);
+}
+
 // ---------------------------------------------------------------------------
 // cmd_vel → serial
 // ---------------------------------------------------------------------------
@@ -168,17 +179,19 @@ void MotorBridgeNode::cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr 
   const double v_left  = v - (wheel_separation_ * 0.5) * w;
   const double v_right = v + (wheel_separation_ * 0.5) * w;
 
-  int pct_left  = static_cast<int>(std::round(v_left  / max_linear_vel_ * 100.0));
-  int pct_right = static_cast<int>(std::round(v_right / max_linear_vel_ * 100.0));
+  const double max_linear_vel = std::abs(max_linear_vel_);
+  if (max_linear_vel <= 0.0) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "max_linear_vel must be greater than 0. Sending stop command.");
+    sendMotorCommand(0, 0);
+    last_cmd_time_ = now();
+    return;
+  }
 
-  if (pct_left  >  100) pct_left  =  100;
-  if (pct_left  < -100) pct_left  = -100;
-  if (pct_right >  100) pct_right =  100;
-  if (pct_right < -100) pct_right = -100;
-
-  char buf[16];
-  std::snprintf(buf, sizeof(buf), "%d,%d\r\n", pct_left, pct_right);
-  sendSerial(buf);
+  const int pct_left = static_cast<int>(std::round(v_left / max_linear_vel * 100.0));
+  const int pct_right = static_cast<int>(std::round(v_right / max_linear_vel * 100.0));
+  sendMotorCommand(pct_left, pct_right);
 
   last_cmd_time_ = now();
 }
@@ -186,7 +199,7 @@ void MotorBridgeNode::cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr 
 void MotorBridgeNode::watchdogCallback()
 {
   if ((now() - last_cmd_time_).seconds() > watchdog_timeout_) {
-    sendSerial("0,0\r\n");
+    sendMotorCommand(0, 0);
   }
 }
 
@@ -241,10 +254,10 @@ void MotorBridgeNode::handleIncomingLine(const std::string & line)
       RCLCPP_WARN(get_logger(), "Failed to parse feedback: %s", line.c_str());
     }
 
-  } else if (line.rfind("OK", 0) == 0) {
-    RCLCPP_DEBUG(get_logger(), "ACK: %s", line.c_str());
+  } else if (line.rfind("OK:", 0) == 0) {
+    RCLCPP_DEBUG(get_logger(), "STM32 OK: %s", line.c_str());
 
-  } else if (line.rfind("ERR", 0) == 0) {
+  } else if (line.rfind("ERR:", 0) == 0) {
     RCLCPP_WARN(get_logger(), "STM32 error: %s", line.c_str());
   }
 }
