@@ -22,7 +22,7 @@ EncoderOdomNode::EncoderOdomNode()
   encoder_ticks_topic_ = declare_parameter<std::string>("encoder_ticks_topic", "/encoder_ticks");
   odom_topic_ = declare_parameter<std::string>("odom_topic", "/odom_raw");
   odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
-  base_frame_ = declare_parameter<std::string>("base_frame", "base_link");
+  base_frame_ = declare_parameter<std::string>("base_frame", "base_footprint");
   wheel_radius_ = declare_parameter<double>("wheel_radius", 0.0625);
   wheel_separation_ = declare_parameter<double>("wheel_separation", 0.38);
   ticks_per_revolution_ = declare_parameter<double>("ticks_per_revolution", 75.0);

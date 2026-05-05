@@ -66,26 +66,26 @@
   <joint name="base_footprint_to_base_link" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <origin xyz="0 0 ${drive_wheel_radius}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${drive_wheel_diameter}" rpy="0 0 0"/>
   </joint>
 
   <link name="base_link">
     <!-- TODO: Replace body primitive with Fusion 360 STL or DAE mesh after export. -->
     <visual>
-      <origin xyz="0 0 ${body_height / 2.0 - drive_wheel_radius}" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
         <box size="${body_length} ${body_width} ${body_height}"/>
       </geometry>
       <material name="body_gray"/>
     </visual>
     <collision>
-      <origin xyz="0 0 ${body_height / 2.0 - drive_wheel_radius}" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
         <box size="${body_length} ${body_width} ${body_height}"/>
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="0 0 ${body_height / 2.0 - drive_wheel_radius}" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="15.0"/>
       <inertia ixx="0.5" ixy="0.0" ixz="0.0" iyy="0.8" iyz="0.0" izz="1.0"/>
     </inertial>
@@ -116,7 +116,7 @@
     <joint name="${side}_wheel_joint" type="continuous">
       <parent link="base_link"/>
       <child link="${side}_wheel_link"/>
-      <origin xyz="0 ${y} 0" rpy="0 0 0"/>
+      <origin xyz="0 ${y} ${drive_wheel_radius - drive_wheel_diameter}" rpy="0 0 0"/>
       <axis xyz="0 1 0"/>
     </joint>
   </xacro:macro>

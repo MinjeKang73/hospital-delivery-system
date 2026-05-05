@@ -9,7 +9,7 @@ slam_toolbox:
     ceres_loss_function: None         # robust loss 미사용
     odom_frame: odom                 # EKF 기준 이동 프레임
     map_frame: map                   # SLAM 전역 프레임
-    base_frame: base_link            # 로봇 기준 프레임
+    base_frame: base_footprint       # 로봇 기준 프레임
     scan_topic: /scan                # LiDAR 입력
     mode: mapping                    # 지도 생성 모드
     use_scan_matching: true          # LiDAR 기반 위치 보정
