@@ -1,0 +1,23 @@
+slam_toolbox:
+  ros__parameters:
+    use_sim_time: false                # real time 사용
+    solver_plugin: solver_plugins::CeresSolver  # pose graph 최적화 solver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY # sparse 구조에 효율적
+    ceres_preconditioner: SCHUR_JACOBI # 수렴 안정화
+    ceres_trust_strategy: LEVENBERG_MARQUARDT # 비선형 최적화 안정적 방식
+    ceres_dogleg_type: TRADITIONAL_DOGLEG     # 기본 dogleg 옵션
+    ceres_loss_function: None         # robust loss 미사용
+    odom_frame: odom                 # EKF 기준 이동 프레임
+    map_frame: map                   # SLAM 전역 프레임
+    base_frame: base_link            # 로봇 기준 프레임
+    scan_topic: /scan                # LiDAR 입력
+    mode: mapping                    # 지도 생성 모드
+    use_scan_matching: true          # LiDAR 기반 위치 보정
+    use_scan_barycenter: true        # scan 중심 활용 안정화
+    minimum_time_interval: 0.5       # scan 처리 최소 간격
+    transform_publish_period: 0.02   # map→odom TF 주기 (50Hz)
+    map_update_interval: 2.0         # map 갱신 주기
+    resolution: 0.05                # 지도 해상도 (5cm)
+    max_laser_range: 12.0           # 사용할 최대 거리
+    minimum_travel_distance: 0.1    # 10cm 이상 이동 시 반영
+    minimum_travel_heading: 0.1     # 약 5.7도 이상 회전 시 반영
