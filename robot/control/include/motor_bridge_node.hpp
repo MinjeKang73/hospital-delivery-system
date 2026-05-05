@@ -27,6 +27,7 @@ private:
   bool openSerial(const std::string & port, int baudrate);
   void closeSerial();
   void sendSerial(const std::string & data);
+  void sendMotorCommand(int left_pct, int right_pct);
   void serialReadLoop();
   void handleIncomingLine(const std::string & line);
 
