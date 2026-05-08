@@ -1,9 +1,13 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, EmitEvent, RegisterEventHandler
+from launch.events import matches_action
 from launch.substitutions import Command, LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import LifecycleNode, Node
+from launch_ros.event_handlers import OnStateTransition
+from launch_ros.events.lifecycle import ChangeState
 from launch_ros.parameter_descriptions import ParameterValue
+from lifecycle_msgs.msg import Transition
 import os
 
 
@@ -50,6 +54,42 @@ def generate_launch_description():
         value_type=str
     )
 
+    slam_toolbox_node = LifecycleNode(
+        package='slam_toolbox',
+        executable='async_slam_toolbox_node',
+        name='slam_toolbox',
+        namespace='',
+        output='screen',
+        parameters=[
+            slam_params_file,
+            {
+                'use_lifecycle_manager': False,
+                'use_sim_time': use_sim_time
+            }
+        ]
+    )
+
+    configure_slam_toolbox = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(slam_toolbox_node),
+            transition_id=Transition.TRANSITION_CONFIGURE
+        )
+    )
+
+    activate_slam_toolbox = RegisterEventHandler(
+        OnStateTransition(
+            target_lifecycle_node=slam_toolbox_node,
+            start_state='configuring',
+            goal_state='inactive',
+            entities=[
+                EmitEvent(event=ChangeState(
+                    lifecycle_node_matcher=matches_action(slam_toolbox_node),
+                    transition_id=Transition.TRANSITION_ACTIVATE
+                ))
+            ]
+        )
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time',
@@ -89,7 +129,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'cyglidar_run_mode',
-            default_value='2'
+            default_value='0'
         ),
         Node(
             package='robot_state_publisher',
@@ -153,7 +193,6 @@ def generate_launch_description():
                 'port_number': LaunchConfiguration('cyglidar_port'),
                 'baud_rate': ParameterValue(LaunchConfiguration('cyglidar_baud_rate'), value_type=int),
                 'frame_id': 'laser_frame',
-                'fixed_frame': '/map',
                 'run_mode': ParameterValue(LaunchConfiguration('cyglidar_run_mode'), value_type=int),
                 'frequency_channel': 0,
                 'duration_mode': 0,
@@ -162,20 +201,13 @@ def generate_launch_description():
                 'data_type_3d': 0,
                 'filter_mode': 0,
                 'edge_filter_value': 0,
-                'enable_kalmanfilter': True,
+                'enable_kalmanfilter': False,
                 'enable_clahe': False,
                 'clahe_cliplimit': 40,
                 'clahe_tiles_grid_size': 8
             }]
         ),
-        Node(
-            package='slam_toolbox',
-            executable='async_slam_toolbox_node',
-            name='slam_toolbox',
-            output='screen',
-            parameters=[
-                slam_params_file,
-                {'use_sim_time': use_sim_time}
-            ]
-        )
+        slam_toolbox_node,
+        configure_slam_toolbox,
+        activate_slam_toolbox
     ])
