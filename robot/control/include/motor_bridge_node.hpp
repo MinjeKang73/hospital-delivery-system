@@ -66,6 +66,7 @@ private:
   std::mutex serial_mutex_;
   std::thread rx_thread_;
   std::atomic<bool> rx_running_;
+  std::string serial_rx_buffer_;
 
   rclcpp::Time last_cmd_time_;
   rclcpp::Time last_feedback_time_;

@@ -5,10 +5,13 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cerrno>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <sstream>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -16,6 +19,58 @@ namespace motor_bridge
 {
 
 static constexpr double PI_CONST = 3.14159265358979323846;
+
+namespace
+{
+
+std::string trim(std::string value)
+{
+  const auto first = value.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) {
+    return "";
+  }
+
+  const auto last = value.find_last_not_of(" \t\r\n");
+  return value.substr(first, last - first + 1);
+}
+
+bool parseInt64Token(const std::string & token, int64_t & value)
+{
+  const std::string trimmed = trim(token);
+  if (trimmed.empty()) {
+    return false;
+  }
+
+  char * end = nullptr;
+  errno = 0;
+  const long long parsed = std::strtoll(trimmed.c_str(), &end, 10);
+  if (errno != 0 || end == trimmed.c_str() || *end != '\0') {
+    return false;
+  }
+
+  value = static_cast<int64_t>(parsed);
+  return true;
+}
+
+bool parseFloatToken(const std::string & token, float & value)
+{
+  const std::string trimmed = trim(token);
+  if (trimmed.empty()) {
+    return false;
+  }
+
+  char * end = nullptr;
+  errno = 0;
+  const float parsed = std::strtof(trimmed.c_str(), &end);
+  if (errno != 0 || end == trimmed.c_str() || *end != '\0') {
+    return false;
+  }
+
+  value = parsed;
+  return true;
+}
+
+}  // namespace
 
 MotorBridgeNode::MotorBridgeNode()
 : Node("motor_bridge_node"),
@@ -208,27 +263,38 @@ void MotorBridgeNode::watchdogCallback()
 
 void MotorBridgeNode::serialReadLoop()
 {
-  std::string line_buf;
-  char ch;
+  char read_buf[256];
 
   while (rx_running_) {
-    bool got_byte = false;
+    ssize_t bytes_read = 0;
 
     {
       std::lock_guard<std::mutex> lock(serial_mutex_);
       if (serial_fd_ >= 0) {
-        got_byte = (read(serial_fd_, &ch, 1) > 0);
+        bytes_read = read(serial_fd_, read_buf, sizeof(read_buf));
       }
     }
 
-    if (got_byte) {
-      if (ch == '\n') {
-        if (!line_buf.empty()) {
-          handleIncomingLine(line_buf);
-          line_buf.clear();
+    if (bytes_read > 0) {
+      serial_rx_buffer_.append(read_buf, static_cast<size_t>(bytes_read));
+
+      size_t newline_pos = serial_rx_buffer_.find('\n');
+      while (newline_pos != std::string::npos) {
+        std::string line = trim(serial_rx_buffer_.substr(0, newline_pos));
+        serial_rx_buffer_.erase(0, newline_pos + 1);
+
+        if (!line.empty()) {
+          handleIncomingLine(line);
         }
-      } else if (ch != '\r') {
-        line_buf.push_back(ch);
+
+        newline_pos = serial_rx_buffer_.find('\n');
+      }
+
+      if (serial_rx_buffer_.size() > 4096) {
+        RCLCPP_WARN(
+          get_logger(),
+          "Serial feedback line exceeded 4096 bytes without newline. Dropping buffered data.");
+        serial_rx_buffer_.clear();
       }
     }
 
@@ -258,6 +324,9 @@ void MotorBridgeNode::handleIncomingLine(const std::string & line)
 
   } else if (line.rfind("ERR:", 0) == 0) {
     RCLCPP_WARN(get_logger(), "STM32 error: %s", line.c_str());
+
+  } else {
+    RCLCPP_WARN(get_logger(), "Unknown STM32 feedback line: %s", line.c_str());
   }
 }
 
@@ -270,24 +339,23 @@ bool MotorBridgeNode::parseEncoderLine(
   int64_t & left_delta_ticks, int64_t & right_delta_ticks,
   float & left_rpm, float & right_rpm)
 {
-  long long parsed_left_ticks = 0;
-  long long parsed_right_ticks = 0;
-
-  const int n = std::sscanf(
-    line.c_str(),
-    "ENC:%lld,%lld,%f,%f",
-    &parsed_left_ticks,
-    &parsed_right_ticks,
-    &left_rpm,
-    &right_rpm);
-
-  if (n != 4) {
+  if (line.rfind("ENC:", 0) != 0) {
     return false;
   }
 
-  left_delta_ticks = static_cast<int64_t>(parsed_left_ticks);
-  right_delta_ticks = static_cast<int64_t>(parsed_right_ticks);
-  return true;
+  std::vector<std::string> tokens;
+  std::stringstream stream(line.substr(4));
+  std::string token;
+
+  while (std::getline(stream, token, ',')) {
+    tokens.push_back(token);
+  }
+
+  return tokens.size() >= 4 &&
+         parseInt64Token(tokens[0], left_delta_ticks) &&
+         parseInt64Token(tokens[1], right_delta_ticks) &&
+         parseFloatToken(tokens[2], left_rpm) &&
+         parseFloatToken(tokens[3], right_rpm);
 }
 
 void MotorBridgeNode::publishFeedback(
