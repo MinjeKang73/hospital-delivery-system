@@ -82,11 +82,6 @@ def generate_launch_description():
         ]
     )
 
-    tf_node = launch_ros.actions.Node(
-        package = 'tf2_ros', executable = "static_transform_publisher", name="to_laserframe",
-        arguments = ["0", "0", "0", "0", "0", "0", "map", "laser_frame"]
-    )
-
     ld = LaunchDescription()
 
     ld.add_action(baud_rate_arg)
@@ -103,6 +98,5 @@ def generate_launch_description():
     ld.add_action(clahe_cliplimit_arg)
     ld.add_action(clahe_tiles_grid_size_arg)
     ld.add_action(lidar_node)
-    ld.add_action(tf_node)
 
     return ld
