@@ -70,6 +70,46 @@ bool parseFloatToken(const std::string & token, float & value)
   return true;
 }
 
+bool startsWithKnownFeedbackPrefix(const std::string & line)
+{
+  return line.rfind("ENC:", 0) == 0 ||
+         line.rfind("OK:", 0) == 0 ||
+         line.rfind("ERR:", 0) == 0;
+}
+
+std::string resyncFeedbackLine(const std::string & line, bool & resynced)
+{
+  resynced = false;
+
+  const size_t first_enc = line.find("ENC:");
+  if (first_enc != std::string::npos) {
+    const size_t last_enc = line.rfind("ENC:");
+    if (last_enc != first_enc) {
+      resynced = true;
+      return line.substr(last_enc);
+    }
+  }
+
+  if (startsWithKnownFeedbackPrefix(line)) {
+    return line;
+  }
+
+  size_t best_pos = std::string::npos;
+  for (const char * prefix : {"ENC:", "OK:", "ERR:"}) {
+    const size_t pos = line.find(prefix);
+    if (pos != std::string::npos && (best_pos == std::string::npos || pos < best_pos)) {
+      best_pos = pos;
+    }
+  }
+
+  if (best_pos != std::string::npos) {
+    resynced = true;
+    return line.substr(best_pos);
+  }
+
+  return line;
+}
+
 }  // namespace
 
 MotorBridgeNode::MotorBridgeNode()
@@ -308,25 +348,33 @@ void MotorBridgeNode::handleIncomingLine(const std::string & line)
   raw_msg.data = line;
   raw_pub_->publish(raw_msg);
 
-  if (line.rfind("ENC:", 0) == 0) {
+  bool resynced = false;
+  const std::string feedback_line = resyncFeedbackLine(line, resynced);
+  if (resynced) {
+    RCLCPP_DEBUG(
+      get_logger(), "Resynchronized STM32 feedback line: %s -> %s",
+      line.c_str(), feedback_line.c_str());
+  }
+
+  if (feedback_line.rfind("ENC:", 0) == 0) {
     int64_t left_delta_ticks, right_delta_ticks;
     float left_rpm, right_rpm;
 
-    if (parseEncoderLine(line, left_delta_ticks, right_delta_ticks, left_rpm, right_rpm)) {
+    if (parseEncoderLine(feedback_line, left_delta_ticks, right_delta_ticks, left_rpm, right_rpm)) {
       publishFeedback(left_delta_ticks, right_delta_ticks, left_rpm, right_rpm);
       last_feedback_time_ = now();
     } else {
-      RCLCPP_WARN(get_logger(), "Failed to parse feedback: %s", line.c_str());
+      RCLCPP_WARN(get_logger(), "Failed to parse feedback: %s", feedback_line.c_str());
     }
 
-  } else if (line.rfind("OK:", 0) == 0) {
-    RCLCPP_DEBUG(get_logger(), "STM32 OK: %s", line.c_str());
+  } else if (feedback_line.rfind("OK:", 0) == 0) {
+    RCLCPP_DEBUG(get_logger(), "STM32 OK: %s", feedback_line.c_str());
 
-  } else if (line.rfind("ERR:", 0) == 0) {
-    RCLCPP_WARN(get_logger(), "STM32 error: %s", line.c_str());
+  } else if (feedback_line.rfind("ERR:", 0) == 0) {
+    RCLCPP_WARN(get_logger(), "STM32 error: %s", feedback_line.c_str());
 
   } else {
-    RCLCPP_WARN(get_logger(), "Unknown STM32 feedback line: %s", line.c_str());
+    RCLCPP_WARN(get_logger(), "Unknown STM32 feedback line: %s", feedback_line.c_str());
   }
 }
 
