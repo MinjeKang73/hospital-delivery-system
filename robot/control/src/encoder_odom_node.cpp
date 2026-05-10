@@ -25,13 +25,13 @@ EncoderOdomNode::EncoderOdomNode()
   base_frame_ = declare_parameter<std::string>("base_frame", "base_footprint");
   wheel_radius_ = declare_parameter<double>("wheel_radius", 0.0625);
   wheel_separation_ = declare_parameter<double>("wheel_separation", 0.38);
-  ticks_per_revolution_ = declare_parameter<double>("ticks_per_revolution", 75.0);
+  ticks_per_revolution_ = declare_parameter<double>("ticks_per_revolution", 156.0);
   publish_tf_ = declare_parameter<bool>("publish_tf", false);
   left_tick_sign_ = declare_parameter<double>("left_tick_sign", 1.0);
   right_tick_sign_ = declare_parameter<double>("right_tick_sign", 1.0);
   enable_tick_outlier_reject_ = declare_parameter<bool>("enable_tick_outlier_reject", true);
-  max_abs_delta_ticks_ = declare_parameter<double>("max_abs_delta_ticks", 50.0);
-  max_abs_tick_difference_ = declare_parameter<double>("max_abs_tick_difference", 40.0);
+  max_abs_delta_ticks_ = declare_parameter<double>("max_abs_delta_ticks", 100.0);
+  max_abs_tick_difference_ = declare_parameter<double>("max_abs_tick_difference", 80.0);
   max_linear_velocity_ = declare_parameter<double>("max_linear_velocity", 1.5);
   max_angular_velocity_ = declare_parameter<double>("max_angular_velocity", 4.0);
 
