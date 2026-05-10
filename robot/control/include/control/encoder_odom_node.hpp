@@ -38,7 +38,12 @@ private:
   double ticks_per_revolution_;
   double left_tick_sign_;
   double right_tick_sign_;
+  double max_abs_delta_ticks_;
+  double max_abs_tick_difference_;
+  double max_linear_velocity_;
+  double max_angular_velocity_;
   bool publish_tf_;
+  bool enable_tick_outlier_reject_;
 
   double x_;
   double y_;
