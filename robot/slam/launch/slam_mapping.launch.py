@@ -1,6 +1,7 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, EmitEvent, RegisterEventHandler
+from launch.conditions import IfCondition
 from launch.events import matches_action
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import LifecycleNode, Node
@@ -18,6 +19,8 @@ def generate_launch_description():
     description_share = get_package_share_directory('description')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
+    use_encoder_odom = LaunchConfiguration('use_encoder_odom')
+    use_rf2o = LaunchConfiguration('use_rf2o')
     slam_params_file = LaunchConfiguration('slam_params_file')
     encoder_params_file = LaunchConfiguration('encoder_params_file')
     imu_params_file = LaunchConfiguration('imu_params_file')
@@ -96,6 +99,14 @@ def generate_launch_description():
             default_value='false'
         ),
         DeclareLaunchArgument(
+            'use_encoder_odom',
+            default_value='false'
+        ),
+        DeclareLaunchArgument(
+            'use_rf2o',
+            default_value='true'
+        ),
+        DeclareLaunchArgument(
             'slam_params_file',
             default_value=default_slam_params_file
         ),
@@ -154,15 +165,37 @@ def generate_launch_description():
                 'watchdog_timeout': 0.5
             }]
         ),
+        # ENCODER ODOM MODE
+        # Set use_encoder_odom:=true and use_rf2o:=false to test with /odom_raw.
         Node(
             package='control',
             executable='encoder_odom_node',
             name='encoder_odom_node',
+            condition=IfCondition(use_encoder_odom),
             output='screen',
             parameters=[
                 encoder_params_file,
                 {'use_sim_time': use_sim_time}
             ]
+        ),
+        # RF2O MODE
+        # Set use_encoder_odom:=false and use_rf2o:=true to test with /odom_rf2o.
+        Node(
+            package='rf2o_laser_odometry',
+            executable='rf2o_laser_odometry_node',
+            name='rf2o_odom',
+            condition=IfCondition(use_rf2o),
+            output='screen',
+            parameters=[{
+                'laser_scan_topic': '/scan',
+                'odom_topic': '/odom_rf2o',
+                'odom_frame_id': 'odom',
+                'base_frame_id': 'base_footprint',
+                'publish_tf': False,
+                'freq': 10.0,
+                'init_pose_from_topic': '',
+                'use_sim_time': use_sim_time
+            }]
         ),
         Node(
             package='sensor_components',

@@ -9,10 +9,19 @@ ekf_node:
     base_link_frame: base_footprint
     world_frame: odom
 
-    odom0: /odom_raw
+    # ENCODER ODOM MODE
+    # odom0: /odom_raw
+    # odom0_config: [true,  true,  false,
+    #                false, false, false,
+    #                true,  false, false,
+    #                false, false, false,
+    #                false, false, false]
+
+    # RF2O MODE
+    odom0: /odom_rf2o
     odom0_config: [true,  true,  false,
                    false, false, false,
-                   true,  false, false,
+                   true,  true,  false,
                    false, false, false,
                    false, false, false]
     odom0_differential: false
