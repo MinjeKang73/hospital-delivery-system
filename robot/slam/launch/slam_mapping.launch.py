@@ -21,6 +21,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     use_encoder_odom = LaunchConfiguration('use_encoder_odom')
     use_rf2o = LaunchConfiguration('use_rf2o')
+    use_ekf = LaunchConfiguration('use_ekf')
     slam_params_file = LaunchConfiguration('slam_params_file')
     encoder_params_file = LaunchConfiguration('encoder_params_file')
     imu_params_file = LaunchConfiguration('imu_params_file')
@@ -100,10 +101,14 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'use_encoder_odom',
-            default_value='false'
+            default_value='true'
         ),
         DeclareLaunchArgument(
             'use_rf2o',
+            default_value='true'
+        ),
+        DeclareLaunchArgument(
+            'use_ekf',
             default_value='true'
         ),
         DeclareLaunchArgument(
@@ -165,8 +170,6 @@ def generate_launch_description():
                 'watchdog_timeout': 0.5
             }]
         ),
-        # ENCODER ODOM MODE
-        # Set use_encoder_odom:=true and use_rf2o:=false to test with /odom_raw.
         Node(
             package='control',
             executable='encoder_odom_node',
@@ -178,8 +181,6 @@ def generate_launch_description():
                 {'use_sim_time': use_sim_time}
             ]
         ),
-        # RF2O MODE
-        # Set use_encoder_odom:=false and use_rf2o:=true to test with /odom_rf2o.
         Node(
             package='rf2o_laser_odometry',
             executable='rf2o_laser_odometry_node',
@@ -211,6 +212,7 @@ def generate_launch_description():
             package='robot_localization',
             executable='ekf_node',
             name='ekf_node',
+            condition=IfCondition(use_ekf),
             output='screen',
             parameters=[
                 ekf_params_file,

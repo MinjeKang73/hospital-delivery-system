@@ -9,24 +9,25 @@ ekf_node:
     base_link_frame: base_footprint
     world_frame: odom
 
-    # ENCODER ODOM MODE
-    # odom0: /odom_raw
-    # odom0_config: [true,  true,  false,
-    #                false, false, false,
-    #                true,  false, false,
-    #                false, false, false,
-    #                false, false, false]
-
-    # RF2O MODE
-    odom0: /odom_rf2o
+    odom0: /odom_raw
     odom0_config: [true,  true,  false,
                    false, false, false,
-                   true,  true,  false,
+                   true,  false, false,
                    false, false, false,
                    false, false, false]
     odom0_differential: false
     odom0_relative: false
-    odom0_queue_size: 10
+    odom0_queue_size: 20
+
+    odom1: /odom_rf2o
+    odom1_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+    odom1_differential: false
+    odom1_relative: false
+    odom1_queue_size: 20
 
     imu0: /imu/data
     imu0_config: [false, false, false,
@@ -36,7 +37,7 @@ ekf_node:
                   false, false, false]
     imu0_differential: false
     imu0_relative: false
-    imu0_queue_size: 10
+    imu0_queue_size: 20
     imu0_remove_gravitational_acceleration: false
 
     use_control: false
