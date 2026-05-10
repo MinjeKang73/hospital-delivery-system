@@ -10,3 +10,8 @@ encoder_odom_node:
     publish_tf: false
     left_tick_sign: 1.0
     right_tick_sign: 1.0
+    enable_tick_outlier_reject: true
+    max_abs_delta_ticks: 50.0
+    max_abs_tick_difference: 40.0
+    max_linear_velocity: 1.5
+    max_angular_velocity: 4.0

@@ -29,6 +29,11 @@ EncoderOdomNode::EncoderOdomNode()
   publish_tf_ = declare_parameter<bool>("publish_tf", false);
   left_tick_sign_ = declare_parameter<double>("left_tick_sign", 1.0);
   right_tick_sign_ = declare_parameter<double>("right_tick_sign", 1.0);
+  enable_tick_outlier_reject_ = declare_parameter<bool>("enable_tick_outlier_reject", true);
+  max_abs_delta_ticks_ = declare_parameter<double>("max_abs_delta_ticks", 50.0);
+  max_abs_tick_difference_ = declare_parameter<double>("max_abs_tick_difference", 40.0);
+  max_linear_velocity_ = declare_parameter<double>("max_linear_velocity", 1.5);
+  max_angular_velocity_ = declare_parameter<double>("max_angular_velocity", 4.0);
 
   odom_pub_ = create_publisher<nav_msgs::msg::Odometry>(odom_topic_, 20);
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
@@ -69,12 +74,28 @@ void EncoderOdomNode::encoderTicksCallback(
   const double delta_s = (right_distance + left_distance) * 0.5;
   const double delta_theta = (right_distance - left_distance) / wheel_separation_;
 
+  const double linear_vel = delta_s / dt;
+  const double angular_vel = delta_theta / dt;
+
+  if (
+    enable_tick_outlier_reject_ &&
+    (std::abs(left_delta_ticks) > max_abs_delta_ticks_ ||
+    std::abs(right_delta_ticks) > max_abs_delta_ticks_ ||
+    std::abs(left_delta_ticks - right_delta_ticks) > max_abs_tick_difference_ ||
+    std::abs(linear_vel) > max_linear_velocity_ ||
+    std::abs(angular_vel) > max_angular_velocity_))
+  {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "Rejected encoder tick outlier: left=%.3f, right=%.3f, linear=%.3f, angular=%.3f",
+      left_delta_ticks, right_delta_ticks, linear_vel, angular_vel);
+    last_time_ = now_time;
+    return;
+  }
+
   x_ += delta_s * std::cos(yaw_ + delta_theta * 0.5);
   y_ += delta_s * std::sin(yaw_ + delta_theta * 0.5);
   yaw_ += delta_theta;
-
-  const double linear_vel = delta_s / dt;
-  const double angular_vel = delta_theta / dt;
 
   publishOdometry(now_time, linear_vel, angular_vel);
   if (publish_tf_) {
