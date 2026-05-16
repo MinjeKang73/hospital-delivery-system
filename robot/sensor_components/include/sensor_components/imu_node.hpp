@@ -40,7 +40,6 @@ private:
   bool readRegisters(uint8_t reg, uint8_t * data, std::size_t length);
   int16_t toInt16(uint8_t lsb, uint8_t msb) const;
   void fillCovariances(sensor_msgs::msg::Imu & msg) const;
-  std::chrono::milliseconds retryInterval() const;
 
   int i2c_fd_;
   int i2c_bus_;
@@ -52,7 +51,7 @@ private:
   bool publish_angular_velocity_;
   bool publish_linear_acceleration_;
   bool sensor_ready_;
-  rclcpp::Time last_init_attempt_;
+  int failed_read_count_;
 
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
   rclcpp::TimerBase::SharedPtr timer_;

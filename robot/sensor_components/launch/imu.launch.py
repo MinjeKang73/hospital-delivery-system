@@ -22,9 +22,14 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='imu_link_static_transform',
             arguments=[
-                '0.30', '0.00', '0.00',
-                '0.0', '0.0', '0.0',
-                'base_link', 'imu_link',
+                '--x', '0.30',
+                '--y', '0.00',
+                '--z', '0.00',
+                '--roll', '0.0',
+                '--pitch', '0.0',
+                '--yaw', '0.0',
+                '--frame-id', 'base_link',
+                '--child-frame-id', 'imu_link',
             ],
         ),
     ])

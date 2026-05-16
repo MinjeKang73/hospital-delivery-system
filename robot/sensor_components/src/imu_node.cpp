@@ -24,6 +24,7 @@ constexpr double kAccelScale = 1.0 / 100.0;
 constexpr double kGyroScale = M_PI / (180.0 * 16.0);
 constexpr double kMinPublishRate = 1.0;
 constexpr double kMaxPublishRate = 400.0;
+constexpr int kMaxConsecutiveReadFailures = 5;
 }  // namespace
 
 ImuNode::ImuNode()
@@ -38,11 +39,11 @@ ImuNode::ImuNode()
   publish_angular_velocity_(declare_parameter<bool>("publish_angular_velocity", true)),
   publish_linear_acceleration_(declare_parameter<bool>("publish_linear_acceleration", true)),
   sensor_ready_(false),
-  last_init_attempt_(0, 0, get_clock()->get_clock_type())
+  failed_read_count_(0)
 {
   publish_rate_ = std::clamp(publish_rate_, kMinPublishRate, kMaxPublishRate);
 
-  imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/imu/data", rclcpp::SensorDataQoS());
+  imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/imu/data", rclcpp::QoS(10).reliable());
 
   const auto period =
     std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(1.0 / publish_rate_));
@@ -59,23 +60,27 @@ ImuNode::~ImuNode()
 void ImuNode::timerCallback()
 {
   if (!sensor_ready_) {
-    const auto now = get_clock()->now();
-    if ((now - last_init_attempt_).nanoseconds() >=
-      std::chrono::duration_cast<std::chrono::nanoseconds>(retryInterval()).count())
-    {
-      sensor_ready_ = initializeSensor();
-    }
     return;
   }
 
   sensor_msgs::msg::Imu msg;
   if (!readImu(msg)) {
-    RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Failed to read BNO055 IMU data");
-    sensor_ready_ = false;
-    closeSensor();
+    ++failed_read_count_;
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 5000, "Failed to read BNO055 IMU data (%d/%d consecutive failures)",
+      failed_read_count_, kMaxConsecutiveReadFailures);
+
+    if (failed_read_count_ >= kMaxConsecutiveReadFailures) {
+      RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 5000, "Reinitializing BNO055 after %d consecutive read failures",
+        failed_read_count_);
+      sensor_ready_ = initializeSensor();
+      failed_read_count_ = 0;
+    }
     return;
   }
 
+  failed_read_count_ = 0;
   msg.header.stamp = get_clock()->now();
   msg.header.frame_id = frame_id_;
   fillCovariances(msg);
@@ -84,7 +89,6 @@ void ImuNode::timerCallback()
 
 bool ImuNode::initializeSensor()
 {
-  last_init_attempt_ = get_clock()->now();
   closeSensor();
 
   uint8_t operation_mode = 0x00;
@@ -123,19 +127,36 @@ bool ImuNode::initializeSensor()
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-  if (!writeRegister(kPwrModeReg, kNormalPowerMode) ||
-    !writeRegister(kSysTriggerReg, 0x00) ||
-    !writeRegister(kUnitSelReg, 0x00) ||
-    !writeRegister(kOprModeReg, operation_mode))
-  {
+  if (!writeRegister(kPwrModeReg, kNormalPowerMode)) {
+    RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Failed to configure BNO055");
+    closeSensor();
+    return false;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+  if (!writeRegister(kSysTriggerReg, 0x00)) {
+    RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Failed to configure BNO055");
+    closeSensor();
+    return false;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+  if (!writeRegister(kUnitSelReg, 0x00)) {
+    RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Failed to configure BNO055");
+    closeSensor();
+    return false;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+  if (!writeRegister(kOprModeReg, operation_mode)) {
     RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Failed to configure BNO055");
     closeSensor();
     return false;
   }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  RCLCPP_INFO(
-    get_logger(), "BNO055 initialized on %s at 0x%02X in %s mode",
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 5000, "BNO055 initialized on %s at 0x%02X in %s mode",
     device.c_str(), i2c_address_, operation_mode_.c_str());
   return true;
 }
@@ -286,11 +307,6 @@ void ImuNode::fillCovariances(sensor_msgs::msg::Imu & msg) const
   } else {
     msg.linear_acceleration_covariance[0] = -1.0;
   }
-}
-
-std::chrono::milliseconds ImuNode::retryInterval() const
-{
-  return std::chrono::milliseconds(2000);
 }
 
 }  // namespace sensor_components
