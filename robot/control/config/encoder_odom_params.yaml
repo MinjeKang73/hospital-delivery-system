@@ -13,5 +13,5 @@ encoder_odom_node:
     enable_tick_outlier_reject: true
     max_abs_delta_ticks: 100.0
     max_abs_tick_difference: 80.0
-    max_linear_velocity: 1.5
+    max_linear_velocity: 1.0
     max_angular_velocity: 4.0
