@@ -160,6 +160,20 @@ bool ImuNode::readImu(sensor_msgs::msg::Imu & msg)
     msg.orientation.x = static_cast<double>(toInt16(quat[2], quat[3])) * kQuaternionScale;
     msg.orientation.y = static_cast<double>(toInt16(quat[4], quat[5])) * kQuaternionScale;
     msg.orientation.z = static_cast<double>(toInt16(quat[6], quat[7])) * kQuaternionScale;
+
+    const double norm = std::sqrt(
+      msg.orientation.x * msg.orientation.x +
+      msg.orientation.y * msg.orientation.y +
+      msg.orientation.z * msg.orientation.z +
+      msg.orientation.w * msg.orientation.w);
+    if (!std::isfinite(norm) || norm <= 1e-6) {
+      return false;
+    }
+
+    msg.orientation.x /= norm;
+    msg.orientation.y /= norm;
+    msg.orientation.z /= norm;
+    msg.orientation.w /= norm;
   }
 
   if (publish_angular_velocity_) {
@@ -248,27 +262,27 @@ void ImuNode::fillCovariances(sensor_msgs::msg::Imu & msg) const
 {
   if (publish_orientation_) {
     msg.orientation_covariance = {
-      0.01, 0.0, 0.0,
-      0.0, 0.01, 0.0,
-      0.0, 0.0, 0.01};
+      0.03, 0.0, 0.0,
+      0.0, 0.03, 0.0,
+      0.0, 0.0, 0.03};
   } else {
     msg.orientation_covariance[0] = -1.0;
   }
 
   if (publish_angular_velocity_) {
     msg.angular_velocity_covariance = {
-      0.001, 0.0, 0.0,
-      0.0, 0.001, 0.0,
-      0.0, 0.0, 0.001};
+      0.01, 0.0, 0.0,
+      0.0, 0.01, 0.0,
+      0.0, 0.0, 0.01};
   } else {
     msg.angular_velocity_covariance[0] = -1.0;
   }
 
   if (publish_linear_acceleration_) {
     msg.linear_acceleration_covariance = {
-      0.05, 0.0, 0.0,
-      0.0, 0.05, 0.0,
-      0.0, 0.0, 0.05};
+      0.2, 0.0, 0.0,
+      0.0, 0.2, 0.0,
+      0.0, 0.0, 0.2};
   } else {
     msg.linear_acceleration_covariance[0] = -1.0;
   }
