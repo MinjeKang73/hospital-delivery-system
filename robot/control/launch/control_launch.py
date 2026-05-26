@@ -39,7 +39,7 @@ def generate_launch_description():
                 'base_frame': 'base_footprint',
                 'wheel_radius': 0.0625,
                 'wheel_separation': 0.38,
-                'ticks_per_revolution': 162.0,
+                'ticks_per_revolution': 75.0,
                 'publish_tf': False,
                 'left_tick_sign': 1.0,
                 'right_tick_sign': 1.0
