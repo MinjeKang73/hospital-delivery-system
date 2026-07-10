@@ -44,6 +44,8 @@ target_include_directories(location_mapper PUBLIC
 )
 target_link_libraries(location_mapper yaml-cpp::yaml-cpp)
 
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 # ── task_manager_node executable ─────────────────────────────
 add_executable(task_manager_node
   src/task_manager_node.cpp
@@ -51,6 +53,7 @@ add_executable(task_manager_node
 )
 ament_target_dependencies(task_manager_node
   rclcpp
+  rclcpp_action
   std_msgs
   geometry_msgs
   ament_index_cpp
@@ -59,6 +62,7 @@ target_link_libraries(task_manager_node
   location_mapper
   nlohmann_json::nlohmann_json
   yaml-cpp::yaml-cpp
+  "${cpp_typesupport_target}"
 )
 
 add_executable(task_motor_sequence_node
@@ -71,7 +75,6 @@ ament_target_dependencies(task_motor_sequence_node
   std_msgs
   control
 )
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(task_motor_sequence_node
   "${cpp_typesupport_target}"
 )

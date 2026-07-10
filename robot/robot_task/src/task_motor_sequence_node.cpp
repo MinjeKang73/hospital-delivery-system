@@ -78,6 +78,35 @@ rclcpp_action::GoalResponse TaskMotorSequenceNode::handleGoal(
     get_logger(),
     "Motor sequence goal received: task_id=%ld type=%s stop=%s phase=%s",
     goal->task_id, goal->task_type.c_str(), goal->stop_type.c_str(), goal->phase.c_str());
+
+  MotorPhase phase;
+  std::string message;
+  if (!validateGoal(*goal, phase, message)) {
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  }
+
+  std::vector<MotorStep> steps;
+  if (!buildSequence(*goal, phase, steps, message) || steps.empty()) {
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(sequence_mutex_);
+    if (sequence_running_) {
+      RCLCPP_WARN(get_logger(), "Motor sequence goal rejected: motor sequence is already running");
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+    if (readyFailureMessageLocked(message)) {
+      RCLCPP_WARN(get_logger(), "Motor sequence goal rejected: %s", message.c_str());
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+  }
+
+  if (!motor_command_client_->service_is_ready()) {
+    RCLCPP_WARN(get_logger(), "Motor sequence goal rejected: motor command service is unavailable");
+    return rclcpp_action::GoalResponse::REJECT;
+  }
+
   return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
 }
 
