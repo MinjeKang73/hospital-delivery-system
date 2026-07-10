@@ -24,6 +24,7 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_srvs/srv/trigger.hpp"
 #include "robot_task/action/execute_motor_sequence.hpp"
 #include "robot_task/location_mapper.hpp"
 
@@ -98,6 +99,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_lock_status_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_cmd_vel_;
   rclcpp_action::Client<ExecuteMotorSequence>::SharedPtr motor_sequence_client_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr motor_sequence_stop_client_;
 
   // ── Timers ──────────────────────────────────────────────
   rclcpp::TimerBase::SharedPtr loading_timer_;
@@ -188,6 +190,7 @@ private:
     const std::string & lock_command,
     const MotorGoalHandle::WrappedResult & result);
   void cancel_motor_sequence();
+  void request_motor_sequence_stop();
   void clear_motor_sequence_context();
   bool is_current_motor_request(
     uint64_t generation,

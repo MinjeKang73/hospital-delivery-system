@@ -15,6 +15,7 @@ find_package(ament_cmake       REQUIRED)
 find_package(rclcpp            REQUIRED)
 find_package(rclcpp_action     REQUIRED)
 find_package(std_msgs          REQUIRED)
+find_package(std_srvs          REQUIRED)
 find_package(geometry_msgs     REQUIRED)
 find_package(ament_index_cpp   REQUIRED)
 find_package(yaml_cpp_vendor   REQUIRED)
@@ -55,6 +56,7 @@ ament_target_dependencies(task_manager_node
   rclcpp
   rclcpp_action
   std_msgs
+  std_srvs
   geometry_msgs
   ament_index_cpp
 )
@@ -73,6 +75,7 @@ ament_target_dependencies(task_motor_sequence_node
   rclcpp
   rclcpp_action
   std_msgs
+  std_srvs
   control
 )
 target_link_libraries(task_motor_sequence_node
