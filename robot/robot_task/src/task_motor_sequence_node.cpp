@@ -417,19 +417,26 @@ void TaskMotorSequenceNode::handleMotorResponse(
   {
     std::lock_guard<std::mutex> lock(sequence_mutex_);
     if (!sequence_running_ || generation != sequence_generation_ || !active_goal_) {
-      RCLCPP_DEBUG(
+      RCLCPP_INFO(
         get_logger(),
-        "Ignoring stale motor response: generation=%lu step=%s",
+        "Motor sequence stale response ignored: generation=%lu step=%s",
         generation, step_name.c_str());
       return;
     }
   }
 
   if (!response->success) {
-    RCLCPP_WARN(
-      get_logger(),
-      "Motor sequence failed: step=%s response=%s",
-      step_name.c_str(), response->response.c_str());
+    if (response->response.find("timeout waiting") != std::string::npos) {
+      RCLCPP_WARN(
+        get_logger(),
+        "Motor sequence timeout: step=%s response=%s",
+        step_name.c_str(), response->response.c_str());
+    } else {
+      RCLCPP_WARN(
+        get_logger(),
+        "Motor sequence step failure: step=%s response=%s",
+        step_name.c_str(), response->response.c_str());
+    }
     finishGoal(
       generation,
       false,
@@ -440,15 +447,19 @@ void TaskMotorSequenceNode::handleMotorResponse(
   {
     std::lock_guard<std::mutex> lock(sequence_mutex_);
     if (!sequence_running_ || generation != sequence_generation_ || !active_goal_) {
-      RCLCPP_DEBUG(
+      RCLCPP_INFO(
         get_logger(),
-        "Ignoring stale successful motor response: generation=%lu step=%s",
+        "Motor sequence stale response ignored: generation=%lu step=%s",
         generation, step_name.c_str());
       return;
     }
     ++current_step_index_;
   }
 
+  RCLCPP_INFO(
+    get_logger(),
+    "Motor sequence step success: step=%s response=%s",
+    step_name.c_str(), response->response.c_str());
   sendNextStep(generation);
 }
 

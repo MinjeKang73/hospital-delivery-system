@@ -10,9 +10,13 @@ namespace
 
 TEST(ControlMotorResponseMatcherTest, IgnoresM6DoneForLiftTargetCommands)
 {
+  EXPECT_FALSE(isSuccessResponse("tl", "[M6] 열기 시작..."));
+  EXPECT_FALSE(isSuccessResponse("tl", "[M6] 닫기 시작..."));
   EXPECT_FALSE(isSuccessResponse("tl", "[DONE] M6:OPEN"));
   EXPECT_FALSE(isSuccessResponse("tl", "[DONE] M6:CLOSE"));
+  EXPECT_FALSE(isSuccessResponse("tl", "[M6] 닫기 완료."));
   EXPECT_TRUE(isSuccessResponse("tl", "[DONE] LIFT:DONE | 상단 도달"));
+  EXPECT_FALSE(isSuccessResponse("3l", "[DONE] M6:CLOSE"));
   EXPECT_TRUE(isSuccessResponse("3l", "[DONE] LIFT:DONE | 도달: 310.0mm"));
 }
 
