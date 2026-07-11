@@ -6,10 +6,10 @@ task_motor_sequence_node:
     stop_motor_sequence_service_name: /robot_task/stop_motor_sequence
     motor_ready_timeout_sec: 2.0
 
-    lift_level_1_command: ""
-    lift_level_2_command: ""
-    lift_level_3_command: ""
-    lift_top_command: "LIFT:500"
+    lift_level_1_command: "1l"
+    lift_level_2_command: "2l"
+    lift_level_3_command: "3l"
+    lift_top_command: "tl"
     lift_stop_command: "k"
 
     clothes_step_forward_command: "w"
@@ -29,5 +29,5 @@ task_motor_sequence_node:
     door_open_command: "o"
     door_close_command: "c"
 
-    lift_home_command: ""
+    lift_home_command: "hl"
     reset_command: "reset"
